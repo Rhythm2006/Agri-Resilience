@@ -177,7 +177,7 @@ app.get('/api/chat/history/:sessionId', async (req, res) => {
 // For local development, fallback to normal listen
 if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
     const PORT = process.env.PORT || 3001;
-    app.listen(PORT, () => console.log(\`[Local] Server running on http://localhost:\${PORT}\`));
+    app.listen(PORT, () => console.log(`[Local] Server running on http://localhost:${PORT}`));
 }
 
 // Export for Vercel Serverless
