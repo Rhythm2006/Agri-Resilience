@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 
-const BackgroundSequence = ({ scrollProgress }) => {
+const BackgroundSequence = ({ scrollProgress, onProgress, onLoadComplete }) => {
     const canvasRef = useRef(null);
     const [images, setImages] = useState([]);
     const frameCount = 300; // Based on the 300 images renamed to 000.png - 299.png
@@ -18,9 +18,17 @@ const BackgroundSequence = ({ scrollProgress }) => {
 
             img.onload = () => {
                 loadedCount++;
+                if (onProgress) {
+                    onProgress(Math.round((loadedCount / frameCount) * 100));
+                }
+
                 if (loadedCount === 1) {
                     // Draw first frame immediately
                     drawFrame(0, loadedImages);
+                }
+
+                if (loadedCount === frameCount && onLoadComplete) {
+                    onLoadComplete();
                 }
             };
             loadedImages.push(img);

@@ -38,6 +38,10 @@ function App() {
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const [activeOverlay, setActiveOverlay] = useState(null);
 
+  // Loading State
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+
   const sectionsCount = config.sections.length;
 
   const handleScroll = useCallback(() => {
@@ -82,10 +86,28 @@ function App() {
 
   return (
     <>
+      {/* Loading Screen */}
+      <div className={`global-loading-screen ${!isLoading ? 'fade-out' : ''}`}>
+        <div className="loading-content">
+          <h2 className="loading-title">{config.global.title}</h2>
+          <div className="loading-bar-container">
+            <div className="loading-bar" style={{ width: `${loadingProgress}%` }}></div>
+          </div>
+          <div className="loading-text">{loadingProgress}%</div>
+        </div>
+      </div>
+
       <div className="app-container">
         {/* Background layer — sticky canvas with scroll-driven frame sequence */}
         <div className="sticky-layer">
-          <BackgroundSequence scrollProgress={scrollProgress} />
+          <BackgroundSequence
+            scrollProgress={scrollProgress}
+            onProgress={setLoadingProgress}
+            onLoadComplete={() => {
+              // Small delay to ensure smooth transition once 100% is hit
+              setTimeout(() => setIsLoading(false), 600);
+            }}
+          />
           <div className="gradient-overlay"></div>
           <OverlayContent
             sections={config.sections}
