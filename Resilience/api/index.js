@@ -1,5 +1,5 @@
 /**
- * Express Backend Server
+ * Express Backend Server (Vercel Serverless Function format)
  * - Proxies OpenRouter API calls (hides API key from client)
  * - Stores chat conversations in MongoDB
  */
@@ -18,18 +18,23 @@ const MODEL = 'nvidia/nemotron-3-nano-30b-a3b:free';
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 let db = null;
+let client = null;
 
 // ─── MongoDB Connection ──────────────────────────────────────────────────────
 
 async function connectDB() {
+    if (db) return db;
     try {
-        const client = new MongoClient(MONGO_URI);
-        await client.connect();
+        if (!client) {
+            client = new MongoClient(MONGO_URI);
+            await client.connect();
+        }
         db = client.db('agri_resilience');
-        console.log('[Server] Connected to MongoDB');
+        console.log('[Serverless] Connected to MongoDB');
+        return db;
     } catch (err) {
-        console.error('[Server] MongoDB connection failed:', err.message);
-        console.log('[Server] Running without database persistence');
+        console.error('[Serverless] MongoDB connection failed:', err.message);
+        return null;
     }
 }
 
@@ -102,7 +107,7 @@ app.post('/api/chat', async (req, res) => {
 
         if (!response.ok) {
             const errText = await response.text();
-            console.error('[Server] OpenRouter error:', response.status, errText);
+            console.error('[Serverless] OpenRouter error:', response.status, errText);
             return res.status(502).json({ error: 'AI service temporarily unavailable' });
         }
 
@@ -118,10 +123,11 @@ app.post('/api/chat', async (req, res) => {
 
         const assistantMessage = result.choices[0].message;
 
-        // Store in MongoDB (non-blocking)
-        if (db && sessionId) {
+        // Store in MongoDB
+        const database = await connectDB();
+        if (database && sessionId) {
             const userMsg = messages[messages.length - 1];
-            db.collection('chat_sessions').updateOne(
+            database.collection('chat_sessions').updateOne(
                 { sessionId },
                 {
                     $push: {
@@ -136,7 +142,7 @@ app.post('/api/chat', async (req, res) => {
                     $setOnInsert: { createdAt: new Date() }
                 },
                 { upsert: true }
-            ).catch(err => console.error('[Server] DB write error:', err.message));
+            ).catch(err => console.error('[Serverless] DB write error:', err.message));
         }
 
         res.json({
@@ -145,7 +151,7 @@ app.post('/api/chat', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('[Server] Chat error:', error);
+        console.error('[Serverless] Chat error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -156,23 +162,23 @@ app.post('/api/chat', async (req, res) => {
  */
 app.get('/api/chat/history/:sessionId', async (req, res) => {
     try {
-        if (!db) return res.json({ messages: [] });
-        const session = await db.collection('chat_sessions').findOne(
+        const database = await connectDB();
+        if (!database) return res.json({ messages: [] });
+        const session = await database.collection('chat_sessions').findOne(
             { sessionId: req.params.sessionId }
         );
         res.json({ messages: session?.messages || [] });
     } catch (error) {
-        console.error('[Server] History error:', error);
+        console.error('[Serverless] History error:', error);
         res.status(500).json({ error: 'Failed to fetch history' });
     }
 });
 
-// ─── Start ───────────────────────────────────────────────────────────────────
+// For local development, fallback to normal listen
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    const PORT = process.env.PORT || 3001;
+    app.listen(PORT, () => console.log(\`[Local] Server running on http://localhost:\${PORT}\`));
+}
 
-const PORT = process.env.PORT || 3001;
-
-connectDB().then(() => {
-    app.listen(PORT, () => {
-        console.log(`[Server] Running on http://localhost:${PORT}`);
-    });
-});
+// Export for Vercel Serverless
+export default app;
